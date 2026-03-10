@@ -1,6 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { spawn } from "node:child_process";
+import { z } from "zod";
 
 const SAFE = ["1", "true", "yes"].includes(String(process.env.REMINDERS_MCP_SAFE || "").toLowerCase());
 let SAFE_MODE = SAFE;
@@ -14,7 +16,7 @@ function toObj(o) { return JSON.parse(JSON.stringify(o)); }
 ${body}
 `;
   return new Promise((resolve, reject) => {
-    const cp = new (await import("node:child_process")).spawn("osascript", ["-l", "JavaScript", "-e", code], { env });
+    const cp = spawn("osascript", ["-l", "JavaScript", "-e", code], { env });
     let out = ""; let err = "";
     cp.stdout.on("data", (d) => (out += d.toString()));
     cp.stderr.on("data", (d) => (err += d.toString()));
@@ -247,100 +249,93 @@ JSON.stringify(hits);
   return runJxa(body, { query });
 }
 
-function RO(desc: string): Tool["inputSchema"] { return { type: "object", properties: {}, additionalProperties: false, description: desc } as any; }
+function RO(_desc: string) { return z.object({}).optional(); }
 
 // Tools registration
-server.registerTool("lists.list", {
-  description: "List all reminder lists (id, name, account)",
-  inputSchema: RO("No input"),
-  async handler() { return { content: [{ type: "json", data: await jxaListsList() }] }; }
-});
+server.registerTool(
+  "lists.list",
+  { title: "List Lists", description: "List all reminder lists (id, name, account)", inputSchema: RO("No input") },
+  async () => ({ content: [], structuredContent: { lists: await jxaListsList() } })
+);
 
-server.registerTool("lists.ensure", {
-  description: "Ensure a list exists by name; create if missing",
-  inputSchema: { type: "object", required: ["name"], properties: { name: { type: "string" } } },
-  async handler({ name }) { ensureNotSafe("lists.ensure"); return { content: [{ type: "json", data: await jxaListsEnsure(name) }] }; }
-});
+server.registerTool(
+  "lists.ensure",
+  { title: "Ensure List", description: "Ensure a list exists by name; create if missing", inputSchema: z.object({ name: z.string() }) },
+  async (args: { name: string }) => { ensureNotSafe("lists.ensure"); return { content: [], structuredContent: { list: await jxaListsEnsure(args.name) } }; }
+);
 
-server.registerTool("lists.delete", {
-  description: "Delete a list by id or name (destructive)",
-  inputSchema: { type: "object", required: ["key"], properties: { key: { type: "string" } } },
-  async handler({ key }) { ensureNotSafe("lists.delete"); return { content: [{ type: "json", data: await jxaListsDelete(key) }] }; }
-});
+server.registerTool(
+  "lists.delete",
+  { title: "Delete List", description: "Delete a list by id or name (destructive)", inputSchema: z.object({ key: z.string() }) },
+  async (args: { key: string }) => { ensureNotSafe("lists.delete"); return { content: [], structuredContent: await jxaListsDelete(args.key) as any }; }
+);
 
-server.registerTool("lists.rename", {
-  description: "Rename a list by id or name",
-  inputSchema: { type: "object", required: ["key","newName"], properties: { key: { type: "string" }, newName: { type: "string" } } },
-  async handler({ key, newName }) { ensureNotSafe("lists.rename"); return { content: [{ type: "json", data: await jxaListsRename(key, newName) }] }; }
-});
+server.registerTool(
+  "lists.rename",
+  { title: "Rename List", description: "Rename a list by id or name", inputSchema: z.object({ key: z.string(), newName: z.string() }) },
+  async (args: { key: string; newName: string }) => { ensureNotSafe("lists.rename"); return { content: [], structuredContent: { list: await jxaListsRename(args.key, args.newName) } }; }
+);
 
-server.registerTool("reminders.list", {
-  description: "List reminders, optionally filtered by list id/name",
-  inputSchema: { type: "object", properties: { listKey: { type: "string" } } },
-  async handler({ listKey }) { return { content: [{ type: "json", data: await jxaRemindersList(listKey) }] }; }
-});
+server.registerTool(
+  "reminders.list",
+  { title: "List Reminders", description: "List reminders, optionally filtered by list id/name", inputSchema: z.object({ listKey: z.string().optional() }) },
+  async (args: { listKey?: string }) => ({ content: [], structuredContent: { reminders: await jxaRemindersList(args.listKey) } })
+);
 
-server.registerTool("reminders.get", {
-  description: "Get a reminder by id",
-  inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" } } },
-  async handler({ id }) { return { content: [{ type: "json", data: await jxaReminderGet(id) }] }; }
-});
+server.registerTool(
+  "reminders.get",
+  { title: "Get Reminder", description: "Get a reminder by id", inputSchema: z.object({ id: z.string() }) },
+  async (args: { id: string }) => ({ content: [], structuredContent: { reminder: await jxaReminderGet(args.id) } })
+);
 
-server.registerTool("reminders.create", {
-  description: "Create a reminder in a list (by id or name)",
-  inputSchema: { type: "object", required: ["title"], properties: {
-    listKey: { type: "string" }, title: { type: "string" }, notes: { type: "string" },
-    dueDate: { type: "string", description: "ISO date or parseable date string" },
-    priority: { type: "number" }, flagged: { type: "boolean" }
-  } },
-  async handler(input) { ensureNotSafe("reminders.create"); return { content: [{ type: "json", data: await jxaReminderCreate(input) }] }; }
-});
+server.registerTool(
+  "reminders.create",
+  { title: "Create Reminder", description: "Create a reminder in a list (by id or name)", inputSchema: z.object({ listKey: z.string().optional(), title: z.string(), notes: z.string().optional(), dueDate: z.string().optional(), priority: z.number().optional(), flagged: z.boolean().optional() }) },
+  async (input: { listKey?: string; title: string; notes?: string; dueDate?: string; priority?: number; flagged?: boolean; }) => { ensureNotSafe("reminders.create"); return { content: [], structuredContent: { reminder: await jxaReminderCreate(input) } }; }
+);
 
-server.registerTool("reminders.update", {
-  description: "Update fields of a reminder by id",
-  inputSchema: { type: "object", required: ["id"], properties: {
-    id: { type: "string" }, title: { type: "string" }, notes: { type: "string" },
-    dueDate: { oneOf: [{ type: "string" }, { type: "null" }] }, priority: { type: "number" }, flagged: { type: "boolean" }
-  } },
-  async handler(input) { ensureNotSafe("reminders.update"); return { content: [{ type: "json", data: await jxaReminderUpdate(input) }] }; }
-});
+server.registerTool(
+  "reminders.update",
+  { title: "Update Reminder", description: "Update fields of a reminder by id", inputSchema: z.object({ id: z.string(), title: z.string().optional(), notes: z.string().optional(), dueDate: z.union([z.string(), z.null()]).optional(), priority: z.number().optional(), flagged: z.boolean().optional() }) },
+  async (input: { id: string; title?: string; notes?: string; dueDate?: string | null; priority?: number; flagged?: boolean; }) => { ensureNotSafe("reminders.update"); return { content: [], structuredContent: { reminder: await jxaReminderUpdate(input) } }; }
+);
 
-server.registerTool("reminders.complete", {
-  description: "Mark a reminder completed or not",
-  inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" }, completed: { type: "boolean" } } },
-  async handler({ id, completed = true }) { ensureNotSafe("reminders.complete"); return { content: [{ type: "json", data: await jxaReminderComplete(id, completed) }] }; }
-});
+server.registerTool(
+  "reminders.complete",
+  { title: "Complete Reminder", description: "Mark a reminder completed or not", inputSchema: z.object({ id: z.string(), completed: z.boolean().optional() }) },
+  async (args: { id: string; completed?: boolean }) => { ensureNotSafe("reminders.complete"); return { content: [], structuredContent: await jxaReminderComplete(args.id, args.completed ?? true) as any }; }
+);
 
-server.registerTool("reminders.delete", {
-  description: "Delete a reminder by id (destructive)",
-  inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" } } },
-  async handler({ id }) { ensureNotSafe("reminders.delete"); return { content: [{ type: "json", data: await jxaReminderDelete(id) }] }; }
-});
+server.registerTool(
+  "reminders.delete",
+  { title: "Delete Reminder", description: "Delete a reminder by id (destructive)", inputSchema: z.object({ id: z.string() }) },
+  async (args: { id: string }) => { ensureNotSafe("reminders.delete"); return { content: [], structuredContent: await jxaReminderDelete(args.id) as any }; }
+);
 
-server.registerTool("reminders.move", {
-  description: "Move a reminder to another list (dest by id or name)",
-  inputSchema: { type: "object", required: ["id","destKey"], properties: { id: { type: "string" }, destKey: { type: "string" } } },
-  async handler({ id, destKey }) { ensureNotSafe("reminders.move"); return { content: [{ type: "json", data: await jxaReminderMove(id, destKey) }] }; }
-});
+server.registerTool(
+  "reminders.move",
+  { title: "Move Reminder", description: "Move a reminder to another list (dest by id or name)", inputSchema: z.object({ id: z.string(), destKey: z.string() }) },
+  async (args: { id: string; destKey: string }) => { ensureNotSafe("reminders.move"); return { content: [], structuredContent: await jxaReminderMove(args.id, args.destKey) as any }; }
+);
 
-server.registerTool("reminders.search", {
-  description: "Search reminders by title/notes",
-  inputSchema: { type: "object", required: ["query"], properties: { query: { type: "string" } } },
-  async handler({ query }) { return { content: [{ type: "json", data: await jxaSearchReminders(query) }] }; }
-});
+server.registerTool(
+  "reminders.search",
+  { title: "Search Reminders", description: "Search reminders by title/notes", inputSchema: z.object({ query: z.string() }) },
+  async (args: { query: string }) => ({ content: [], structuredContent: { results: await jxaSearchReminders(args.query) } })
+);
 
 // Admin
-server.registerTool("server.status", {
-  description: "Get server status, including safe mode",
-  inputSchema: RO("No input"),
-  async handler() { return { content: [{ type: "json", data: { safeMode: SAFE_MODE, name: "apple-reminders-mcp", version: "0.1.0" } }] }; }
-});
+server.registerTool(
+  "server.status",
+  { title: "Server Status", description: "Get server status, including safe mode", inputSchema: RO("No input") },
+  async () => ({ content: [], structuredContent: { safeMode: SAFE_MODE, name: "apple-reminders-mcp", version: "0.1.0" } })
+);
 
-server.registerTool("server.set_safe_mode", {
-  description: "Set safe (read-only) mode for this session",
-  inputSchema: { type: "object", required: ["safe"], properties: { safe: { type: "boolean" } } },
-  async handler({ safe }) { SAFE_MODE = !!safe; return { content: [{ type: "json", data: { safeMode: SAFE_MODE } }] }; }
-});
+server.registerTool(
+  "server.set_safe_mode",
+  { title: "Set Safe Mode", description: "Set safe (read-only) mode for this session", inputSchema: z.object({ safe: z.boolean() }) },
+  async (args: { safe: boolean }) => { SAFE_MODE = !!args.safe; return { content: [], structuredContent: { safeMode: SAFE_MODE } }; }
+);
 
 // Start
 const transport = new StdioServerTransport();
