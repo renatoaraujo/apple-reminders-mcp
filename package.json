@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "postbuild": "node scripts/ensure-shebang.js",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "prepublishOnly": "npm run build"
@@ -30,5 +31,9 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/renatoaraujo/apple-reminders-mcp.git"
   }
 }
