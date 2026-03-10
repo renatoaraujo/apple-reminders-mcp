@@ -7,6 +7,8 @@ Quick Start
 - Requirements: macOS, Node 20+, Reminders enabled.
 - Install: `npm install` then `npm run build`.
 - Run: `node dist/index.js` (or `npm run dev` for TypeScript dev mode).
+- npx (npm registry): after publishing, run `npx apple-reminders-mcp`.
+- npx (GitHub, immediate): `npx -y github:renatoaraujo/apple-reminders-mcp apple-reminders-mcp`.
 - Connect with an MCP-compatible client:
   - Claude Desktop: add under `mcpServers` in `~/Library/Application Support/Claude/claude_desktop_config.json`:
     {
@@ -19,6 +21,28 @@ Quick Start
     }
   - Generic MCP clients (Cursor, Continue, Cline): use the same block above per client docs.
   - Codex CLI: no first-class MCP config yet; use Claude/Cursor/etc., or the scripts in `scripts/` to drive the server directly.
+
+Claude Desktop via npx (when published)
+
+{
+  "mcpServers": {
+    "apple-reminders": {
+      "command": "npx",
+      "args": ["-y", "apple-reminders-mcp"]
+    }
+  }
+}
+
+Claude Desktop via npx (GitHub, immediate)
+
+{
+  "mcpServers": {
+    "apple-reminders": {
+      "command": "npx",
+      "args": ["-y", "github:renatoaraujo/apple-reminders-mcp", "apple-reminders-mcp"]
+    }
+  }
+}
 
 Safety & Privacy
 
