@@ -3,6 +3,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { spawn } from "node:child_process";
 import { z } from "zod";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 const SAFE = ["1", "true", "yes"].includes(String(process.env.REMINDERS_MCP_SAFE || "").toLowerCase());
 let SAFE_MODE = SAFE;
 function runJxa(body, args = {}) {
@@ -258,6 +261,22 @@ server.registerTool("reminders.search", { title: "Search Reminders", description
 server.registerTool("server.status", { title: "Server Status", description: "Get server status, including safe mode", inputSchema: RO("No input") }, async () => ({ content: [], structuredContent: { safeMode: SAFE_MODE, name: "apple-reminders-mcp", version: "0.1.0" } }));
 server.registerTool("server.set_safe_mode", { title: "Set Safe Mode", description: "Set safe (read-only) mode for this session", inputSchema: z.object({ safe: z.boolean() }) }, async (args) => { SAFE_MODE = !!args.safe; return { content: [], structuredContent: { safeMode: SAFE_MODE } }; });
 // Start
+// Lightweight CLI flags for CI/testing and users
+try {
+    const argv = process.argv.slice(2);
+    if (argv.includes("--version")) {
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+        const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+        console.log(String(pkg.version || "0.0.0"));
+        process.exit(0);
+    }
+    if (argv.includes("--help")) {
+        console.log("apple-reminders-mcp: start an MCP server over stdio.\nUsage: npx @rnto1/apple-reminders-mcp [--version] [--help]");
+        process.exit(0);
+    }
+}
+catch { }
 const transport = new StdioServerTransport();
 server.connect(transport).catch((err) => {
     console.error("Failed to start MCP server:", err);
