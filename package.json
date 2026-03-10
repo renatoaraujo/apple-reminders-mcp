@@ -1,6 +1,6 @@
 {
-  "name": "@renatoaraujo/apple-reminders-mcp",
-  "version": "0.2.0",
+  "name": "@rnto1/apple-reminders-mcp",
+  "version": "0.2.1",
   "private": false,
   "type": "module",
   "bin": {
@@ -26,7 +26,15 @@
     "zod": "^4.3.6"
   },
   "description": "MCP server for Apple Reminders on macOS (local stdio)",
-  "keywords": ["mcp", "model context protocol", "apple", "reminders", "macos", "cli", "renatoaraujo"],
+  "keywords": [
+    "mcp",
+    "model context protocol",
+    "apple",
+    "reminders",
+    "macos",
+    "cli",
+    "renatoaraujo"
+  ],
   "files": [
     "dist",
     "README.md"
